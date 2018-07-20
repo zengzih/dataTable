@@ -1,0 +1,41 @@
+{
+  "name": "datatable",
+  "version": "1.0.0",
+  "description": "zzh",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "webpack": "^4.12.0"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-preset-es2015": "^6.24.1",
+    "clean-webpack-plugin": "^0.1.19",
+    "css-loader": "^0.28.11",
+    "dev-server": "0.0.2",
+    "file-loader": "^1.1.11",
+    "html-webpack-plugin": "^3.2.0",
+    "postcss-bem": "^0.4.1",
+    "postcss-nested": "^3.0.0",
+    "postcss-salad": "^2.0.1",
+    "style-loader": "^0.21.0",
+    "vue-loader": "^15.2.4",
+    "webpack-cli": "^3.0.8",
+    "webpack-dev-server": "^3.1.4"
+  },
+  "scripts": {
+    "test": "N",
+    "dev": "webpack --config build/webpack.config.js",
+    "start": "webpack-dev-server --config build/webpack.config.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "N"
+  },
+  "keywords": [
+    "N"
+  ],
+  "author": "N",
+  "license": "UNLICENSED"
+}

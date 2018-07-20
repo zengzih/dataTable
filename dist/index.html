@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+  <link rel="stylesheet" href="../static//index.css">
+  <link rel="stylesheet" href="../static//gobal//skin1.css">
+  <!--<link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
+  <script src="https://cdn.bootcss.com/jquery/2.1.1/jquery.min.js"></script>
+  <!--<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>-->
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="../static/popper/tablepop.js"></script>
+  <script src="../static/popper/popper.js"></script>
+  <script src="../static/gobal/index.js"></script>
+   <style>
+
+    .el-table__fixed,
+    .el-table__fixed-right {
+      box-shadow: none;
+    }
+
+    .el-table .cell {
+      overflow: hidden;
+      /*自动隐藏文字*/
+      text-overflow: ellipsis;
+      /*文字隐藏后添加省略号*/
+      white-space: nowrap;
+      /*强制不换行*/
+    }
+
+    .cell.selection {
+      text-align: center;
+    }
+
+    .el-tooltip__popper.is-dark {
+      z-index: 9999;
+    }
+
+    .cell.selection input {
+      display: none;
+    }
+
+    .popper__content {
+      width: 100%;
+    }
+
+    .cell.selection .inner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #bfcbd9;
+      border-radius: 4px;
+      position: relative;
+      vertical-align: middle;
+    }
+
+    .cell.selection .inner:after {
+      content: "";
+      position: absolute;
+      width: 3px;
+      height: 7px;
+      border: 2px solid #fff;
+      border-left: 0;
+      border-top: 0;
+      left: 4px;
+      top: 1px;
+      transform: rotate(45deg) scaleY(0);
+      transition: transform .15s cubic-bezier(.71, -.46, .88, .6) .05s;
+      transform-origin: center;
+    }
+
+    .cell.selection input[type=checkbox]:checked + .inner {
+      background: #5B7BFA;
+    }
+
+    .cell.selection input[type=checkbox]:checked + .inner:after {
+      content: "";
+      position: absolute;
+      width: 4px;
+      height: 8px;
+      border: 2px solid #fff;
+      border-left: 0;
+      border-top: 0;
+      left: 5px;
+      top: 2px;
+      transform: rotate(45deg) scaleY(1);
+      transform-origin: center;
+    }
+
+    .el-table__body tr.highlightCurrentRow>td {
+      background: yellow !important;
+    }
+
+    .table_config {
+      position: absolute;
+      right: 5px;
+      top: 10px;
+      z-index: 999;
+      text-align: center;
+      line-height: 18px;
+      cursor: pointer;
+    }
+    .el-table__fixed, .el-table__fixed-right {
+      overflow: hidden;
+    }
+    .el-table__fixed-right .el-table__header tr th:first-child, .el-table__fixed-right .el-table__body tr td:first-child{
+      border-left: 1px solid #b1bddd;
+    }
+   </style>
+</head>
+
+<body class="sc-skin1">
+  <div class="table"></div>
+  <button onclick="add()">setColumn</button>
+  <button onclick="addFixedCol()">addFixedCol</button>
+  <button onclick="setHeight()">setHeight</button>
+  <button onclick="selectionRow()">selectionRow</button>
+<script type="text/javascript" src="js/dataTable.js"></script></body>
+<script>
+  let formats = {//需格式化数据
+    date: { format: "yyyy-MM-dd" },
+    bizDateE: { format: "yyyy-MM-dd" },
+    transferDate: { format: "yyyy-MM-dd" },
+    transferAmount: { format: "￥10,000.00", isIntFixed: true },//,isMillionYuan: false, multiplier: 1, isZeroFixed: false,},
+    payeeAmount: { format: "￥10,000.00", isIntFixed: true },
+    fdate: { format: "yyyy-MM-dd" },
+    amount: { format: "￥10,000.00", isIntFixed: true },
+    dealAmount: { format: "￥10,000.00", isIntFixed: true },
+  };
+  var popper = new TablePopper({
+    title: '成交单信息',
+    // style: { width: '300px', height: '230px' },
+    openDelay: 1000
+  });
+  var table = new Table({
+    el: '.table',
+    data: {
+      data: [],
+      tableConfig: true,
+      column: [
+        { type: 'selection', width: 50},
+        {
+          label: '划款类型', prop: 'transferType', minWidth: 250, render: function (params) {
+            var color = 'black';
+            return '<span style="color:' + color + '">' + params.row[params.column.prop] + '</span>';
+          },
+          renderPopover: function (params) {
+            const column = [
+              { label: '业务类型:', prop: 'taType', minWidth: 80 },
+              { label: '网点:', prop: 'fnetid', minWidth: 80 },
+              { label: '申请日期:', prop: 'fdate',  minWidth: 80 },
+              { label: '结转天数:', prop: 'carryDownDays', minWidth: 80 },
+              { label: '金额(元):', prop: 'amount', style: { textAlign: 'right' }, minWidth: 80 },
+            ];
+            popper.style = { width: '100px', height: '200px' };
+            popper.showPopper({
+              reference: params.el,
+              type: 'popper',
+              placement: 'right-start',
+              updateCallback: function (el) {
+                el.innerHTML = '';
+                let popperTable = new Table({
+                  el: el.contentEl,
+                  data: {
+                    height: 200,
+                    data: [],
+                    column: column
+                  }
+                })
+              }
+            });
+          }
+        },
+        {
+          label: '基金信息',
+          prop: 'prdName',
+          minWidth: 300,
+          sort: true,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '收款人',
+          prop: 'payeeAcctName',
+          minWidth: 150,
+          sort: true,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '收款人账户',
+          prop: 'payeeAcctNo',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '收款人开户行',
+          prop: 'payeeAcctBankName',
+          minWidth: 220,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '收款人支付系统号',
+          prop: 'payeeAcctNo',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '划款金额',
+          prop: 'transferAmount',
+          minWidth: 150,
+          headerStyle: { textAlign: "right" },
+          style: { textAlign: 'right' }
+        },
+        { label: '币种', prop: 'currency', minWidth: 150 },
+        { label: '指令状态', prop: 'auditProcessStatus', minWidth: 150 },
+        { label: '银行处理状态', prop: 'bankHandleStatus', minWidth: 150 },
+        { label: '款项交收状态', prop: 'settlementStatus', minWidth: 130 },
+        { label: '收款人账户', prop: 'payeeAcctNo', minWidth: 150 },
+        { label: '发送渠道', prop: 'sendWay', minWidth: 150 },
+        { label: '传真/邮箱状态', prop: 'faxSendStatus', minWidth: 150 },
+        {
+          label: '付款人',
+          prop: 'draweeAcctName',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '付款人账户',
+          prop: 'draweeAcctNo',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '付款人开户行',
+          prop: 'draweeAcctBankName',
+          minWidth: 220,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '付款人账户',
+          prop: 'draweeAcctNo',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '付款人大额支付号',
+          prop: 'draweeLargePayNo',
+          minWidth: 170,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        { label: '指令编号', prop: 'instructionNo', minWidth: 220 },
+
+        { label: '划款日期', prop: 'transferDate', minWidth: 200 },
+        { label: '生成日期', prop: 'productionTime', minWidth: 200 },
+        { label: '发送时间', prop: 'sendTime', minWidth: 220 },
+        { label: '开始日期', prop: 'bizDateB', minWidth: 150 },
+
+        { label: '截止日期', prop: 'transferDate', minWidth: 200 },
+        {
+          label: '机构名称',
+          prop: 'orgName',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '席位信息',
+          prop: 'seatNo',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        { label: '证券代码', prop: 'secCode', minWidth: 150 },
+
+        {
+          label: '证券名称',
+          prop: 'secName',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '联系人',
+          prop: 'contactName',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '联系电话',
+          prop: 'contactMobilephone',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '指令来源',
+          prop: 'isManual',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+
+
+        {
+          label: '经办人',
+          prop: 'manager',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '复核人',
+          prop: 'reviewer',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' }
+        },
+        {
+          label: '审批人',
+          prop: 'approver',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' },
+          fixed: 'right'
+        },
+        {
+          label: '账户核对',
+          prop: 'acctCkResult',
+          minWidth: 150,
+          headerStyle: { textAlign: "left" },
+          style: { textAlign: 'left' },
+          fixed: 'right'
+        },
+
+      ],
+      nodeKey: 'id',
+      height: 300
+    },
+    methods: {
+      openTableConfig() {
+      },
+      rowClick() {
+        rowClick();
+      },
+      cellClick() {
+        cellClick();
+      }
+    }
+  })
+
+  function selectionRow() {
+    table.toggleRowSelection(['9B4EC11300E14D81B20BE523F4E2EE78', '4028c8a76394fab1016395dca9760000']);
+  }
+
+  function cellClick() {
+    console.log('---cellClick------');
+  }
+  function rowClick() {
+    console.log('---rowClick------');
+  }
+  function formatter(row, col) {
+    return gobal.formatter(row, col.property, formats);
+  }
+  function add() {
+    console.log(table.height);
+    table.height = 400;
+    axios.get('../static/JsonData/package.json')
+      .then(function (response) {
+        table.load({
+          data: {
+            data: response.data.rows
+          }
+        });
+      });
+  }
+
+  function addFixedCol() {
+    table.load({
+      data: {
+        column: [
+          { label: '日期', prop: 'date', minWidth: 300, fixed: true },
+          { label: '姓名', prop: 'name', minWidth: 300 },
+          { label: '地址', prop: 'address', minWidth: 700 },
+          { label: '城市', prop: 'city', minWidth: 700, fixed: 'right' }
+        ]
+      }
+    });
+  }
+  function setHeight() {
+    table.height = '300';
+  }
+</script>
+
+</html>
