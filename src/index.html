@@ -4,17 +4,18 @@
 <head>
   <meta charset="UTF-8">
   <title>Title</title>
+  <link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css">
   <link rel="stylesheet" href="../static//index.css">
   <link rel="stylesheet" href="../static//gobal//skin1.css">
-  <!--<link rel="stylesheet" href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css">-->
+
   <script src="https://cdn.bootcss.com/jquery/2.1.1/jquery.min.js"></script>
-  <!--<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>-->
+  <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+  <script src="https://unpkg.com/element-ui@1.4/lib/index.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <script src="../static/popper/tablepop.js"></script>
   <script src="../static/popper/popper.js"></script>
   <script src="../static/gobal/index.js"></script>
-   <style>
-
+  <style>
     .el-table__fixed,
     .el-table__fixed-right {
       box-shadow: none;
@@ -107,6 +108,31 @@
     .el-table__fixed-right .el-table__header tr th:first-child, .el-table__fixed-right .el-table__body tr td:first-child{
       border-left: 1px solid #b1bddd;
     }
+
+    .el-table .error-row div.cell {
+      color: #FF0000 !important;
+    }
+
+    .el-table .wait-handle-row div.cell {
+      color: #000000 !important;
+    }
+
+    .el-table .has-send-row div.cell {
+      color: #009900 !important;
+    }
+
+    .el-table .cancel-row div.cell {
+      color: #DAA520 !important;
+    }
+
+    .el-table .other-row div.cell {
+      color: #808080 !important;
+    }
+   table {border-collapse: inherit;
+   }
+   .cell.selection  label{
+     margin-bottom: 0;
+   }
    </style>
 </head>
 
@@ -116,6 +142,7 @@
   <button onclick="addFixedCol()">addFixedCol</button>
   <button onclick="setHeight()">setHeight</button>
   <button onclick="selectionRow()">selectionRow</button>
+  <button onclick="layout()">layout</button>
 </body>
 <script>
   let formats = {//需格式化数据
@@ -137,7 +164,9 @@
     el: '.table',
     data: {
       data: [],
+      scroll: false,
       tableConfig: true,
+      rowClassName: getRowClassName,
       column: [
         { type: 'selection', width: 50},
         {
@@ -146,16 +175,29 @@
             return '<span style="color:' + color + '">' + params.row[params.column.prop] + '</span>';
           },
           renderPopover: function (params) {
+            return;
             const column = [
-              { label: '业务类型:', prop: 'taType', minWidth: 80 },
-              { label: '网点:', prop: 'fnetid', minWidth: 80 },
-              { label: '申请日期:', prop: 'fdate',  minWidth: 80 },
-              { label: '结转天数:', prop: 'carryDownDays', minWidth: 80 },
-              { label: '金额(元):', prop: 'amount', style: { textAlign: 'right' }, minWidth: 80 },
+              { label: '业务类型:', prop: 'taType', width: 80 },
+              { label: '网点:', prop: 'fnetid', width: 80 },
+              { label: '申请日期:', prop: 'fdate',  width: 80 },
+              { label: '结转天数:', prop: 'carryDownDays', width: 80 },
+              { label: '金额(元):', prop: 'amount', style: { textAlign: 'right' }, width: 80 },
             ];
-            popper.style = { width: '100px', height: '200px' };
+             // popper.style = { width: 'auto', height: 'auto' };
+            /*$(params.el).popover({trigger: 'hover', html: true, animation: false, content: getTable() }).on('mouseenter', function () {
+              $(params.el).popover('show');
+              $(".popover").on("mouseleave", function () {
+                $(this).popover('hide');
+              });
+            }).on('mouseleave', function() {
+              if (!$(".popover:hover").length) {
+                $(this).popover("hide");
+              }
+            });*/
+
             popper.showPopper({
               reference: params.el,
+              scroll: false,
               type: 'popper',
               placement: 'right-start',
               updateCallback: function (el) {
@@ -170,6 +212,18 @@
                 })
               }
             });
+            function getTable() {
+              let content = document.createElement('div');
+              let popperTable = new Table({
+                el: content,
+                data: {
+                  height: 200,
+                  data: [],
+                  column: column
+                }
+              });
+              return content
+            }
           }
         },
         {
@@ -355,10 +409,13 @@
       },
       cellClick() {
         cellClick();
+      },
+      selectionChange(data) {
+        console.log(data);
       }
     }
   })
-
+  console.log(table);
   function selectionRow() {
     table.toggleRowSelection(['9B4EC11300E14D81B20BE523F4E2EE78', '4028c8a76394fab1016395dca9760000']);
   }
@@ -384,6 +441,7 @@
         });
       });
   }
+  add();
 
   function addFixedCol() {
     table.load({
@@ -400,6 +458,29 @@
   function setHeight() {
     table.height = '300';
   }
+  function getRowClassName(row, index) {
+    if (row["bankHandleStatusCode"] == "202") { //错误添加颜色--银行处理状态
+      return 'error-row';
+    }
+    if (row["pauseFlag"] == "1") { //暂停添加颜色
+      return 'other-row';
+    }
+    if (row["processFlagCode"] == "00132006") { //撤销添加颜色
+      return 'cancel-row';
+    }
+    //已发送 分发中 已分发 添加颜色
+    if ("00132003,00132009,00132010".indexOf(row["processFlagCode"]) > -1) {
+      return 'has-send-row';
+    }
+    if (row["processFlagCode"] == "00132001") { //待处理添加颜色
+      return 'error-row';
+    }
+    return 'other-row'; //其他颜色
+  }
+  function layout() {
+    table.doLayout();
+  }
+
 </script>
 
 </html>

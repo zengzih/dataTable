@@ -70,6 +70,7 @@ export let _defaultData = {
   tableConfig: false,
   highlightCurrentRow: 'current-row'
 };
+
 var tooltip = null;
 export default function Table(options) {
   this.methods = {};
@@ -78,6 +79,7 @@ export default function Table(options) {
   this.scrollX = false;
   this.scrollY = false;
   this.theadHeight = '';
+  this.rowClassName = '';
   this.gutterWidth = 17;
   this.popper = '';
   this.tooltip = '';
@@ -141,6 +143,13 @@ Table.prototype.createTable = function () {
     this.createEl.appendChild(this.tableHeaderWrapper);
   }
 
+  if (!this.resizeProxy) {
+    this.resizeProxy = document.createElement('div');
+    this.resizeProxy.className = 'el-table__column-resize-proxy';
+    this.resizeProxy.style.display = 'none';
+    this.createEl.appendChild(this.resizeProxy);
+  }
+
   if (!this.tableBodyWrapper) {
     this.tableBodyWrapper = document.createElement('div');
     this.tableBodyWrapper.className = 'el-table__body-wrapper';
@@ -192,6 +201,7 @@ Table.prototype.doLayout = function () {
     col.className = 'el-table_column_' + index;
     bodyMinWidth += parseInt(col.width || col.minWidth || 80, 10);
     if (col.width) {
+      console.log('col.width=============' + col.width);
       col.realWidth = col.width;
       fitColumnWidth += parseInt(col.width, 10);
     }
@@ -247,10 +257,33 @@ Table.prototype.createTableContent = function () {
   const fixedRightBodyWrapper = this.tableFixedRight && this.tableFixedRight.querySelector('.el-table__fixed-body-wrapper');
   this.tableBodyWrapper.addEventListener('scroll', function (e) {
     let target = e.target;
+    if (this.methods.handleScroll instanceof Function) {
+      this.methods.handleScroll(e);
+    }
     this.tableHeaderWrapper.scrollLeft = target.scrollLeft;
     if (fixedLeftBodyWrapper) fixedLeftBodyWrapper.scrollTop = target.scrollTop;
     if (fixedRightBodyWrapper) fixedRightBodyWrapper.scrollTop = target.scrollTop;
   }.bind(this));
+
+  var mousewheelevt=(/Firefox/i.test(navigator.userAgent))?"DOMMouseScroll": "mousewheel";//FF doesn't recognize mousewheel as of FF3.x
+
+  this.createEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+  if(document.attachEvent) {
+    //if IE (and Opera depending on user setting)
+    this.tableBodyWrapper.attachEvent("on"+mousewheelevt, function(e){
+      if (this.scroll !== false) {
+        e.stopPropagation();
+      }
+    }.bind(this));
+  } else if(document.addEventListener) { //WC3 browsers
+    this.tableBodyWrapper.addEventListener(mousewheelevt, function(e){
+      if (this.scroll !== false) {
+        e.stopPropagation();
+      }
+    }.bind(this), false);
+  }
 };
 
 Table.prototype.getFixedTableHeader = function (el, column) {
@@ -271,9 +304,6 @@ Table.prototype.getFixedTableHeader = function (el, column) {
   this.getTableHeader(fixedHeaderWrapper, column, true);
 };
 
-
-
-
 Table.prototype.getFixedTableBody = function (el, column) { // el-table__fixed-body-wrapper
   var fixedFrag = document.createDocumentFragment();
   var elTableFixedBody = el.querySelector('.el-table__fixed-body-wrapper');
@@ -289,7 +319,7 @@ Table.prototype.getFixedTableBody = function (el, column) { // el-table__fixed-b
   let tableHeaderRect = this.tableHeader.getBoundingClientRect();
   let vStyle = {
     height: (this.scrollX ? (this.tBodyHeight - this.gutterWidth) : this.tBodyHeight) + 'px',
-    top: tableHeaderRect.height + 'px'
+    top: (tableHeaderRect.height || 25) + 'px'
   };
   for (let i in vStyle) {
     this.fixedTbodyWrapper.style[i] = vStyle[i];
@@ -374,6 +404,9 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
   el.appendChild(tBody);
   data.forEach(function (tr, index) {
     var vTr = document.createElement('tr');
+    if (this.rowClassName instanceof Function) {
+      vTr.className = this.rowClassName(tr, index);
+    }
     getTd(tr, vTr, isFixed, index);
     trFarg.appendChild(vTr);
     vTr.onclick = (function (e) { // 行点击事件
@@ -381,7 +414,6 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
     }.bind(this))
   }.bind(this));
   tBody.appendChild(trFarg);
-
   function getTd(tr, el, isFixed, index) {
     var tdFrag = document.createDocumentFragment();
     column.forEach(function (col) {
@@ -390,7 +422,7 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
       vCol.dataset.enter = true;
       vCol.dataset.index = index;
       vCol.addEventListener('mouseleave', function (e) {
-        _this.handleMouseleave(e);
+        _this.handleMouseleave(e, col);
       });
       vCol.addEventListener('mouseenter', function (e) {
        _this.handleMouseenter(e, col, tr, index)
@@ -405,7 +437,16 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
       for (var i in col.style) {
         vCol.style[i] = col.style[i];
       }
-      _colHtml += '<div class="' + (col.type === 'selection' && (isFixed || !col.fixed) ? 'cell selection' : 'cell') + '">';
+      /*if (col.renderPopover) {
+        vCol.dataset.container = 'body';
+        vCol.dataset.toggle = 'popover';
+        vCol.dataset.placement = 'right';
+      }*/
+      if (col.renderPopover) {
+        _colHtml += '<div data-container="body" data-toggle="popover" data-placement="right" class="' + (col.type === 'selection' && (isFixed || !col.fixed) ? 'cell selection' : 'cell') + '">';
+      } else {
+        _colHtml += '<div class="' + (col.type === 'selection' && (isFixed || !col.fixed) ? 'cell selection' : 'cell') + '">';
+      }
       if (isFixed) {
         if (col.type === 'selection') {
           if (_this.tableKey[tr[_this.nodeKey]]) {
@@ -450,6 +491,12 @@ Table.prototype.getHeaderCell = function (column, el, isFixed) { // thead
     let _th = '', _cell = '', _label = '', _input = '', _sortSpan = '', _iAscending = '', _iDescending, _inner = '';
     column.forEach((col) => {
       _th = document.createElement('th');
+      _th.addEventListener('mousemove', function(e) {
+        this.handleMousemove(e);
+      }.bind(this));
+      _th.addEventListener('mousedown', function (e) {
+        this.handleMousedown(e, col);
+      }.bind(this));
       _th.setAttribute('colspan', 1);
       _th.setAttribute('rowspan', 1);
       _th.className = (col.sortable ? 'is-sortable' : '') + ' is-leaf';
@@ -684,9 +731,15 @@ Table.prototype.watchProperty = function (key) {
   }
 };
 
-Table.prototype.handleMouseleave = function (e) {
+Table.prototype.handleMouseleave = function (e, col) {
   tooltip.closeTooltip();
   e.target.dataset.enter = true;
+  if (col.hide instanceof Function) {
+    col.hide(e);
+  }
+  if (this.methods.handleMouseleave instanceof Function) {
+    this.methods.handleMouseleave(e, col);
+  }
   let bodyTr = this.tableBodyWrapper.querySelectorAll('.el-table__body tbody tr');
   let fixedBodyTr = this.tableFixed && this.tableFixed.querySelectorAll('.el-table__body tbody tr');
   let fixedRightBodyTr = this.tableFixedRight && this.tableFixedRight.querySelectorAll('.el-table__body tbody tr');
@@ -711,12 +764,15 @@ Table.prototype.handleMouseenter = function (e, col, tr, index) {
       placement: 'top-start',
     });
   }
-  if (dataEnter) {
-    if (col.renderPopover) {
-      e.target.dataset.enter = false;
-      col.renderPopover({column: col, row: tr, el: cell});
-    }
+  if (col.show instanceof Function) {
+    col.show(e, col, tr, index);
   }
+  // if (dataEnter) {
+  if (col.renderPopover) {
+    e.target.dataset.enter = false;
+    col.renderPopover({column: col, row: tr, el: cell});
+  }
+  // }
   // 行hover高亮以及选中高亮
   let bodyTr = this.tableBodyWrapper.querySelectorAll('.el-table__body tbody tr');
   let fixedBodyTr = this.tableFixed && this.tableFixed.querySelectorAll('.el-table__body tbody tr');
@@ -725,6 +781,70 @@ Table.prototype.handleMouseenter = function (e, col, tr, index) {
   fixedBodyTr && addClass(fixedBodyTr[index], 'hover-row');
   fixedRightBodyTr && addClass(fixedRightBodyTr[index], 'hover-row');
 };
+
+
+Table.prototype.handleMousemove = function(evnet) {
+  // resizeProxy
+  let target = event.target;
+  while (target && target.tagName !== 'TH') {
+    target = target.parentNode;
+  }
+  const bodyStyle = document.body.style;
+  var rect = target.getBoundingClientRect();
+  if (rect.width > 12 && rect.right - event.pageX < 8) {
+    bodyStyle.cursor = 'col-resize';
+  } else {
+    bodyStyle.cursor = '';
+  }
+};
+Table.prototype.handleMousedown = function(e, column) {
+  let table = event.target;
+  while(table && table.tagName !== 'TABLE') {
+    table = table.parentNode;
+  }
+  this.resizeProxy.style.display = 'block';
+  const tableLeft = table.getBoundingClientRect().left;
+  const columnRect = event.target.getBoundingClientRect();
+  const minLeft = columnRect.left - tableLeft + 30;
+  this.dragState = {
+    startMouseLeft: event.clientX,
+    startLeft: columnRect.right - tableLeft,
+    startColumnLeft: columnRect.left - tableLeft,
+    tableLeft
+  };
+  this.resizeProxy.style.left = this.dragState.startLeft + 'px';
+  document.onselectstart = function () { return false; };
+  document.ondragstart = function () { return false; };
+  const handleMouseMove = (event) => {
+    const deltaLeft = event.clientX - this.dragState.startMouseLeft;
+    const proxyLeft = this.dragState.startLeft + deltaLeft;
+    this.resizeProxy.style.left = Math.max(minLeft, proxyLeft) + 'px';
+  };
+  const handleMouseUp = () => {
+    const {
+      startColumnLeft,
+      startLeft
+    } = this.dragState;
+    const finalLeft = parseInt(this.resizeProxy.style.left, 10);
+    const columnWidth = finalLeft - startColumnLeft;
+    column.width = columnWidth;
+    document.body.style.cursor = '';
+    this.dragState = {};
+    this.resizeProxy.style.display = 'none';
+    console.log(column);
+    console.log(this.column);
+    this.doLayout();
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.onselectstart = null;
+    document.ondragstart = null;
+  };
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+
+};
+
+
 
 Table.prototype.load = function (options) {
   for (var i in options.data) {
@@ -745,5 +865,9 @@ Table.prototype.toggleRowSelection = function(checkData) {
       this.tableKey[i] = true;
     }
   }
+  let selectData = this.data.filter((ta) => {
+    return this.tableKey[ta[this.nodeKey]];
+  });
+  this.methods.selectionChange(selectData);
 };
 window.Table = Table;

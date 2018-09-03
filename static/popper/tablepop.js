@@ -115,6 +115,7 @@ TablePopper.prototype.handleMouseleave = function() {
 
 
 TablePopper.prototype.handleMouseenter = function() {
+  console.log('--------enter------');
   clearTimeout(this.timer);
   if (this.params.openDelay) {
     this.timer = setTimeout(() => {
@@ -125,6 +126,7 @@ TablePopper.prototype.handleMouseenter = function() {
     // this.popper.style.display = 'block';
     this.show = true;
   }
+
 };
 
 TablePopper.prototype.watchProperty = function(key, val) {
