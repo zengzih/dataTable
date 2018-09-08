@@ -10,7 +10,8 @@ module.exports = {
     path: path.resolve(__dirname, '../dist')
   },
   devServer: {
-    open: true
+    open: true,
+    port: 8080
   },
   module: {
     rules: [

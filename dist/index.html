@@ -15,8 +15,7 @@
   <script src="../static/popper/tablepop.js"></script>
   <script src="../static/popper/popper.js"></script>
   <script src="../static/gobal/index.js"></script>
-   <style>
-
+  <style>
     .el-table__fixed,
     .el-table__fixed-right {
       box-shadow: none;
@@ -134,6 +133,9 @@
    .cell.selection  label{
      margin-bottom: 0;
    }
+   .el-table__column-resize-proxy {
+     border-left: 1px solid #b1bddd;
+   }
    </style>
 </head>
 
@@ -143,6 +145,7 @@
   <button onclick="addFixedCol()">addFixedCol</button>
   <button onclick="setHeight()">setHeight</button>
   <button onclick="selectionRow()">selectionRow</button>
+  <button onclick="layout()">layout</button>
 <script type="text/javascript" src="js/dataTable.js"></script></body>
 <script>
   let formats = {//需格式化数据
@@ -168,61 +171,62 @@
       tableConfig: true,
       rowClassName: getRowClassName,
       column: [
-        { type: 'selection', width: 50},
+        { type: 'selection', width: 50, fixed: true},
         {
           label: '划款类型', prop: 'transferType', minWidth: 250, render: function (params) {
             var color = 'black';
             return '<span style="color:' + color + '">' + params.row[params.column.prop] + '</span>';
           },
           renderPopover: function (params) {
-            // const column = [
-            //   { label: '业务类型:', prop: 'taType', width: 80 },
-            //   { label: '网点:', prop: 'fnetid', width: 80 },
-            //   { label: '申请日期:', prop: 'fdate',  width: 80 },
-            //   { label: '结转天数:', prop: 'carryDownDays', width: 80 },
-            //   { label: '金额(元):', prop: 'amount', style: { textAlign: 'right' }, width: 80 },
-            // ];
-            //  // popper.style = { width: 'auto', height: 'auto' };
-            // /*$(params.el).popover({trigger: 'hover', html: true, animation: false, content: getTable() }).on('mouseenter', function () {
-            //   $(params.el).popover('show');
-            //   $(".popover").on("mouseleave", function () {
-            //     $(this).popover('hide');
-            //   });
-            // }).on('mouseleave', function() {
-            //   if (!$(".popover:hover").length) {
-            //     $(this).popover("hide");
-            //   }
-            // });*/
+            return;
+            const column = [
+              { label: '业务类型:', prop: 'taType', width: 80 },
+              { label: '网点:', prop: 'fnetid', width: 80 },
+              { label: '申请日期:', prop: 'fdate',  width: 80 },
+              { label: '结转天数:', prop: 'carryDownDays', width: 80 },
+              { label: '金额(元):', prop: 'amount', style: { textAlign: 'right' }, width: 80 },
+            ];
+             // popper.style = { width: 'auto', height: 'auto' };
+            /*$(params.el).popover({trigger: 'hover', html: true, animation: false, content: getTable() }).on('mouseenter', function () {
+              $(params.el).popover('show');
+              $(".popover").on("mouseleave", function () {
+                $(this).popover('hide');
+              });
+            }).on('mouseleave', function() {
+              if (!$(".popover:hover").length) {
+                $(this).popover("hide");
+              }
+            });*/
 
-            // popper.showPopper({
-            //   reference: params.el,
-            //   scroll: false,
-            //   type: 'popper',
-            //   placement: 'right-start',
-            //   updateCallback: function (el) {
-            //     el.innerHTML = '';
-            //     let popperTable = new Table({
-            //       el: el.contentEl,
-            //       data: {
-            //         height: 200,
-            //         data: [],
-            //         column: column
-            //       }
-            //     })
-            //   }
-            // });
-            // function getTable() {
-            //   let content = document.createElement('div');
-            //   let popperTable = new Table({
-            //     el: content,
-            //     data: {
-            //       height: 200,
-            //       data: [],
-            //       column: column
-            //     }
-            //   });
-            //   return content
-            // }
+            popper.showPopper({
+              reference: params.el,
+              scroll: false,
+              type: 'popper',
+              placement: 'right-start',
+              updateCallback: function (el) {
+                el.innerHTML = '';
+                let popperTable = new Table({
+                  el: el.contentEl,
+                  data: {
+                    height: 200,
+                    data: [],
+                    column: column
+                  }
+                })
+              }
+            });
+            function getTable() {
+              let content = document.createElement('div');
+              let popperTable = new Table({
+                el: content,
+                data: {
+                  height: 200,
+                  data: [],
+                  column: column
+                }
+              });
+              return content
+            }
           }
         },
         {
@@ -413,8 +417,7 @@
         console.log(data);
       }
     }
-  });
-  table.doLayout();
+  })
   console.log(table);
   function selectionRow() {
     table.toggleRowSelection(['9B4EC11300E14D81B20BE523F4E2EE78', '4028c8a76394fab1016395dca9760000']);
@@ -476,6 +479,9 @@
       return 'error-row';
     }
     return 'other-row'; //其他颜色
+  }
+  function layout() {
+    table.doLayout();
   }
 
 </script>

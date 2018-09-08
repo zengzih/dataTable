@@ -133,6 +133,9 @@
    .cell.selection  label{
      margin-bottom: 0;
    }
+   .el-table__column-resize-proxy {
+     border-left: 1px solid #b1bddd;
+   }
    </style>
 </head>
 
@@ -168,7 +171,7 @@
       tableConfig: true,
       rowClassName: getRowClassName,
       column: [
-        { type: 'selection', width: 50},
+        { type: 'selection', width: 50, fixed: true},
         {
           label: '划款类型', prop: 'transferType', minWidth: 250, render: function (params) {
             var color = 'black';

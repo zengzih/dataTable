@@ -78,9 +78,12 @@ export default function Table(options) {
   this._data = Object.assign({}, _defaultData, options.data);
   this.scrollX = false;
   this.scrollY = false;
+  this.fitColumn = true;
   this.theadHeight = '';
   this.rowClassName = '';
   this.gutterWidth = 17;
+  this.dragging = false;
+  this.draggingColumn = [];
   this.popper = '';
   this.tooltip = '';
   this.tBodyHeight = '';
@@ -96,10 +99,29 @@ export default function Table(options) {
   this.methods = Object.assign({}, this.methods, options.methods);
   this.getTableKey();
   this.createTable();
-  this.tablePopper = debounce(50, (event, params) => event.renderPopover(params));
+  // this.tablePopper = debounce(50, (event, params) => event.renderPopover(params));
+  this.tablePopper = debounce(100, (e, col, tr, index) => col.show(e, col, tr, index));
+  this.popperHide = debounce(100, (col, e) => col.hide(e));
   if (!tooltip) {
     tooltip = new Tooltip();
   }
+};
+Table.prototype.defaltColumn = function() {
+  this.column.forEach(col=> {
+    if (col.width !== undefined) {
+      col.width = parseInt(col.width, 10);
+      if (isNaN(col.width)) {
+        col.width = null;
+      }
+    }
+    if (col.minWidth !== undefined) {
+      col.minWidth = parseInt(col.minWidth, 10);
+      if (isNaN(col.minWidth)) {
+        col.minWidth = 80;
+      }
+    }
+    col.realWidth = col.width || col.minWidth;
+  });
 };
 Table.prototype.getTableEl = function () {
   if (typeof this.el === 'string') {
@@ -135,8 +157,6 @@ Table.prototype.createTable = function () {
       });
     }
   }
-
-
   if (!this.tableHeaderWrapper) {
     this.tableHeaderWrapper = document.createElement('div');
     this.tableHeaderWrapper.className = 'el-table__header-wrapper';
@@ -178,12 +198,13 @@ Table.prototype.createTable = function () {
   this.doLayout();
 };
 
-Table.prototype.doLayout = function () {
+Table.prototype.doLayout = function (callback) {
   /*
   * 1、给未设置宽度的列设置默认宽度
   * 2、当所有列的宽度之和小于el的宽度时，自动适应
   * 3、当列宽之和大于el的宽度时，宽度取列设置的宽度
   */
+  this.defaltColumn();
   var bodyMinWidth = 0;
   var bodyHeight = this.tableBodyWrapper.querySelector('.el-table__body').offsetHeight;
   var elWidth = this.getTableEl().offsetWidth;
@@ -199,32 +220,42 @@ Table.prototype.doLayout = function () {
       col.prop = col.property;
     }
     col.className = 'el-table_column_' + index;
-    bodyMinWidth += parseInt(col.width || col.minWidth || 80, 10);
-    if (col.width) {
-      console.log('col.width=============' + col.width);
-      col.realWidth = col.width;
-      fitColumnWidth += parseInt(col.width, 10);
+    bodyMinWidth += parseInt(col.width || col.minWidth, 10);
+    // if (col.width) {
+    //   col.realWidth = col.width;
+    //   fitColumnWidth += parseInt(col.width, 10);
+    // }
+    if (callback instanceof Function) {
+      callback();
     }
   });
-  if (bodyMinWidth < elWidth - gutterWidth) {
-    var originColumn = this.column.filter(function (col) {
-      return !col.width;
-    });
-    var allColumnsWidth = originColumn.reduce(function (prev, column) {
-      return prev + (column.minWidth || 80)
-    }, 0);
-    var totalFlexWidth = elWidth - bodyMinWidth - gutterWidth;
-    var flexWidthPerPixel = totalFlexWidth / allColumnsWidth;
-    var noneFirstWidth = 0;
-    originColumn.forEach(function (col) {
-      const flexWidth = Math.floor((col.minWidth || 80) * flexWidthPerPixel);
-      noneFirstWidth += flexWidth;
-      col.realWidth = (col.minWidth || 80) + flexWidth;
-    });
-    originColumn.length && (originColumn[0].realWidth = originColumn[0].realWidth + (totalFlexWidth - noneFirstWidth) - 1);
+  let originColumn = this.column.filter((column) => typeof column.width !== 'number');
+  if (originColumn.length) {
+    if (bodyMinWidth < elWidth - gutterWidth) {
+      var allColumnsWidth = originColumn.reduce(function (prev, column) {
+        return prev + column.minWidth;
+      }, 0);
+      var totalFlexWidth = elWidth - bodyMinWidth - gutterWidth;
+      var flexWidthPerPixel = totalFlexWidth / allColumnsWidth;
+      var noneFirstWidth = 0;
+      originColumn.forEach(function (col) {
+        const flexWidth = Math.floor(col.minWidth * flexWidthPerPixel);
+        noneFirstWidth += flexWidth;
+        col.realWidth = col.minWidth + flexWidth;
+      });
+      originColumn.length && (originColumn[0].realWidth = originColumn[0].realWidth + (totalFlexWidth - noneFirstWidth) - 1);
+    } else {
+      originColumn.forEach(function (column) {
+        column.realWidth = column.minWidth;
+      });
+    }
   } else {
-    this.column.forEach(function (column) {
-      column.realWidth = column.minWidth || 80;
+    this.column.forEach(col=> {
+      if (!col.width && !col.minWidth) {
+        col.realWidth = 80;
+      } else {
+        col.realWidth = col.width || col.minWidth;
+      }
     });
   }
   this.createTableContent();
@@ -421,11 +452,11 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
       vCol.className = col.className;
       vCol.dataset.enter = true;
       vCol.dataset.index = index;
-      vCol.addEventListener('mouseleave', function (e) {
-        _this.handleMouseleave(e, col);
-      });
       vCol.addEventListener('mouseenter', function (e) {
        _this.handleMouseenter(e, col, tr, index)
+      });
+      vCol.addEventListener('mouseleave', function (e) {
+        _this.handleMouseleave(e, col);
       });
       var _colHtml = '';
       if (isFixed && col.type === 'selection') {
@@ -437,11 +468,6 @@ Table.prototype.getBodyCell = function (column, data, el, isFixed) {
       for (var i in col.style) {
         vCol.style[i] = col.style[i];
       }
-      /*if (col.renderPopover) {
-        vCol.dataset.container = 'body';
-        vCol.dataset.toggle = 'popover';
-        vCol.dataset.placement = 'right';
-      }*/
       if (col.renderPopover) {
         _colHtml += '<div data-container="body" data-toggle="popover" data-placement="right" class="' + (col.type === 'selection' && (isFixed || !col.fixed) ? 'cell selection' : 'cell') + '">';
       } else {
@@ -492,14 +518,17 @@ Table.prototype.getHeaderCell = function (column, el, isFixed) { // thead
     column.forEach((col) => {
       _th = document.createElement('th');
       _th.addEventListener('mousemove', function(e) {
-        this.handleMousemove(e);
+        this.handleMousemove(e, col);
+      }.bind(this));
+      _th.addEventListener('mouseout', function (e) {
+        this.handleMouseout(e);
       }.bind(this));
       _th.addEventListener('mousedown', function (e) {
         this.handleMousedown(e, col);
       }.bind(this));
       _th.setAttribute('colspan', 1);
       _th.setAttribute('rowspan', 1);
-      _th.className = (col.sortable ? 'is-sortable' : '') + ' is-leaf';
+      _th.className = (col.sortable ? 'is-sortable' : '') + ' is-leaf ' + col.className;
       _cell = document.createElement('div');
       _th.addEventListener('click', (e) => {
         this.handleSortChange(e, col)
@@ -733,9 +762,17 @@ Table.prototype.watchProperty = function (key) {
 
 Table.prototype.handleMouseleave = function (e, col) {
   tooltip.closeTooltip();
+  e.target.removeEventListener('mouseenter' ,this.handleMouseenter);
   e.target.dataset.enter = true;
+  if ($) {
+    $(e.target).stop();
+    if ($(e.target).is(":animated")) {
+      return false;
+    }
+  }
   if (col.hide instanceof Function) {
-    col.hide(e);
+    this.popperHide(col, e);
+    // col.hide(e);
   }
   if (this.methods.handleMouseleave instanceof Function) {
     this.methods.handleMouseleave(e, col);
@@ -751,6 +788,12 @@ Table.prototype.handleMouseleave = function (e, col) {
 };
 
 Table.prototype.handleMouseenter = function (e, col, tr, index) {
+  if ($) {
+    $(e.target).stop();        
+    if ($(e.target).is(":animated")) {
+      return false;
+    }
+  }
   const cell = e.target.querySelector('.cell');
   const text = cell.innerHTML;
   const dataEnter = e.target.dataset.enter;
@@ -765,7 +808,8 @@ Table.prototype.handleMouseenter = function (e, col, tr, index) {
     });
   }
   if (col.show instanceof Function) {
-    col.show(e, col, tr, index);
+    this.tablePopper(e, col, tr, index);
+    // col.show(e, col, tr, index);
   }
   // if (dataEnter) {
   if (col.renderPopover) {
@@ -783,68 +827,76 @@ Table.prototype.handleMouseenter = function (e, col, tr, index) {
 };
 
 
-Table.prototype.handleMousemove = function(evnet) {
+Table.prototype.handleMousemove = function(event, column) {
   // resizeProxy
   let target = event.target;
   while (target && target.tagName !== 'TH') {
     target = target.parentNode;
   }
-  const bodyStyle = document.body.style;
-  var rect = target.getBoundingClientRect();
-  if (rect.width > 12 && rect.right - event.pageX < 8) {
-    bodyStyle.cursor = 'col-resize';
-  } else {
-    bodyStyle.cursor = '';
+  if(!this.dragging) {
+    const bodyStyle = document.body.style;
+    var rect = target.getBoundingClientRect();
+    if (rect.width > 12 && rect.right - event.pageX < 8) {
+      bodyStyle.cursor = 'col-resize';
+      this.draggingColumn = column;
+    } else if (!this.dragging) {
+      bodyStyle.cursor = '';
+      this.draggingColumn = null;
+    }
   }
 };
-Table.prototype.handleMousedown = function(e, column) {
-  let table = event.target;
-  while(table && table.tagName !== 'TABLE') {
-    table = table.parentNode;
-  }
-  this.resizeProxy.style.display = 'block';
-  const tableLeft = table.getBoundingClientRect().left;
-  const columnRect = event.target.getBoundingClientRect();
-  const minLeft = columnRect.left - tableLeft + 30;
-  this.dragState = {
-    startMouseLeft: event.clientX,
-    startLeft: columnRect.right - tableLeft,
-    startColumnLeft: columnRect.left - tableLeft,
-    tableLeft
-  };
-  this.resizeProxy.style.left = this.dragState.startLeft + 'px';
-  document.onselectstart = function () { return false; };
-  document.ondragstart = function () { return false; };
-  const handleMouseMove = (event) => {
-    const deltaLeft = event.clientX - this.dragState.startMouseLeft;
-    const proxyLeft = this.dragState.startLeft + deltaLeft;
-    this.resizeProxy.style.left = Math.max(minLeft, proxyLeft) + 'px';
-  };
-  const handleMouseUp = () => {
-    const {
-      startColumnLeft,
-      startLeft
-    } = this.dragState;
-    const finalLeft = parseInt(this.resizeProxy.style.left, 10);
-    const columnWidth = finalLeft - startColumnLeft;
-    column.width = columnWidth;
-    document.body.style.cursor = '';
-    this.dragState = {};
-    this.resizeProxy.style.display = 'none';
-    console.log(column);
-    console.log(this.column);
-    this.doLayout();
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.onselectstart = null;
-    document.ondragstart = null;
-  };
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-
+Table.prototype.handleMouseout = function() {
+  document.body.style.cursor = '';
 };
 
-
+Table.prototype.handleMousedown = function (event, column) {
+  if (this.draggingColumn) {
+    let table = this.createEl;
+    this.resizeProxy.style.display = 'block';
+    const columnEl = this.tableHeaderWrapper.querySelector(`th.${column.className}`);
+    // tableHeaderWrapper
+    const tableLeft = table.getBoundingClientRect().left;
+    const columnRect = columnEl.getBoundingClientRect();
+    const minLeft = columnRect.left - tableLeft + 30;
+    this.dragState = {
+      startMouseLeft: event.clientX,
+      startLeft: columnRect.right - tableLeft,
+      startColumnLeft: columnRect.left - tableLeft,
+      tableLeft
+    };
+    this.resizeProxy.style.left = this.dragState.startLeft + 'px';
+    document.onselectstart = function () { return false; };
+    document.ondragstart = function () { return false; };
+    const handleMouseMove = (event) => {
+      const deltaLeft = event.clientX - this.dragState.startMouseLeft;
+      const proxyLeft = this.dragState.startLeft + deltaLeft;
+      this.resizeProxy.style.left = Math.max(minLeft, proxyLeft) + 'px';
+    };
+    const handleMouseUp = () => {
+      const {
+        startColumnLeft,
+      } = this.dragState;
+      const finalLeft = parseInt(this.resizeProxy.style.left, 10);
+      const columnWidth = finalLeft - startColumnLeft;
+      column.width = columnWidth;
+      document.body.style.cursor = '';
+      this.dragState = {};
+      this.resizeProxy.style.display = 'none';
+      let scrollLeft = this.tableBodyWrapper.scrollLeft;
+      this.doLayout(function() {
+        this.tableBodyWrapper.scrollLeft = scrollLeft;
+      }.bind(this));
+      this.dragging = false;
+      this.draggingColumn = null;
+      document.onselectstart = null;
+      document.ondragstart = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
+};
 
 Table.prototype.load = function (options) {
   for (var i in options.data) {
@@ -854,6 +906,7 @@ Table.prototype.load = function (options) {
   }
   this.getTableKey();
   this.doLayout();
+  this.toggleRowSelection([]); // 重新加载数据时清空选中的数据
   // this.createTableContent();
 };
 
